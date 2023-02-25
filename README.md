@@ -15,4 +15,5 @@ Control the temperature and humidity of the air around your flowers.
  :warning: In the macros, you can configure gpio pins.
 
 # Todo
+* [ ] Remember alarm ranges
 * [ ] Soil humidity monitoring
