@@ -13,14 +13,42 @@
 #define BTN1_IN 4
 #define BTN2_IN 5
 #define BTN3_IN 6
-// ---
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 DHT dht(DHT_DAT, DHT11);
 
-enum States { disp, set } state = disp;
-int max_tem = 30, min_tem = 20, max_hum = 60, min_hum = 40;
-int set_pos = 0;
+struct Settings {
+  enum  PropertiesIndices {
+    MIN_T, MAX_T,
+    MIN_H, MAX_H
+  };
+  int position = 0;
+  int properties[4] { 
+    [MIN_T] = 20, [MAX_T] = 30, [MIN_H] = 40, [MAX_H] = 40 
+  };
+  int positionDisplay[4][2] {
+    [MIN_T] = { 0, 0 },
+    [MAX_T] = { 4, 0 },
+    [MIN_H] = { 0, 1 },
+    [MAX_H] = { 4, 1 }
+  };
+ 
+  void operator++(int) {
+    properties[position]++;
+  }
+
+  void operator--(int) {
+    properties[position]--;
+  }
+
+  inline void next() {
+    position = (position > 2) ? 0 : ++position;
+  }
+
+  inline int* getPositionDisplay() {
+    return positionDisplay[position];
+  }
+} settings;
 
 void setup() {
   Wire.setSDA(LCD_SDA);
@@ -40,102 +68,52 @@ void setup() {
 }
 
 void loop() {
-  static unsigned long last = millis();
+  static enum States { CURRENT, SETTINGS } state = CURRENT;
+  static auto last = millis();
   char buf[32];
+
   lcd.setCursor(0, 0);
 
   if (!digitalRead(BTN1_IN) || !digitalRead(BTN2_IN) || !digitalRead(BTN3_IN))
-    state = set;
+    state = SETTINGS;
 
   switch (state) {
-    case disp: {
-      float hum = dht.readHumidity(), tem = dht.readTemperature();
+    case CURRENT: {
+      auto t = dht.readTemperature(), h = dht.readHumidity();
   
-      if (tem > max_tem || tem < min_tem || hum > max_hum || hum < min_hum) {
+      if (t < settings.MIN_T || t > settings.MAX_T || h < settings.MIN_H || h > settings.MAX_H)
         tone(BUZ_OUT, 500, 1000);
-      }
 
       lcd.noBlink();
-      snprintf(buf, sizeof buf, "%2.2f%% %2.2f*C  ", hum, tem);
+      snprintf(buf, sizeof buf, "%2.2f*C %2.2f%%  ", t, h);
       lcd.print(buf);
       lcd.setCursor(0, 1);
       lcd.print("                ");
       break;
     }
 
-    case set:
-    if (!digitalRead(BTN1_IN)) {
-      if (set_pos > 2) set_pos = 0;
-      else set_pos++;
-    }
+    case SETTINGS:
+    if (!digitalRead(BTN1_IN))
+      settings.next();
 
-    if (!digitalRead(BTN2_IN)) {
-      switch (set_pos) {
-        case 0:
-        max_tem--;
-        break;
+    if (!digitalRead(BTN2_IN))
+      settings--;
 
-        case 1:
-        min_tem--;
-        break;
-
-        case 2:
-        max_hum--;
-        break;
-
-        case 3:
-        min_hum--;
-        break;
-      }
-    }
-
-    if (!digitalRead(BTN3_IN)) {
-      switch (set_pos) {
-        case 0:
-        max_tem++;
-        break;
-
-        case 1:
-        min_tem++;
-        break;
-
-        case 2:
-        max_hum++;
-        break;
-
-        case 3:
-        min_hum++;
-        break;
-      }
-    }
-
-    lcd.blink();
-    snprintf(buf, sizeof buf, "%3d<%3d*C       ", min_tem, max_tem);
+    if (!digitalRead(BTN3_IN))
+      settings++;
+    
+    snprintf(buf, sizeof buf, "%3d<%3d*C       ", settings.properties[settings.MIN_T], settings.properties[settings.MAX_T]);
     lcd.print(buf);
     lcd.setCursor(0, 1);
-    snprintf(buf, sizeof buf, "%3d<%3d%%        ", min_hum, max_hum);
+    snprintf(buf, sizeof buf, "%3d<%3d%%        ", settings.properties[settings.MIN_H], settings.properties[settings.MAX_H]);
     lcd.print(buf);
+    lcd.blink();
 
-    switch (set_pos) {
-      case 0:
-      lcd.setCursor(4, 0);
-      break;
-
-      case 1:
-      lcd.setCursor(0, 0);
-      break;
-
-      case 2:
-      lcd.setCursor(4, 1);
-      break;
-
-      case 3:
-      lcd.setCursor(0, 1);
-      break;
-    }
+    auto tmp = settings.getPositionDisplay();
+    lcd.setCursor(tmp[0], tmp[1]);
 
     if (millis() - last >= 2000) {
-      state = disp;
+      state = CURRENT;
       last = millis();
     }
 
