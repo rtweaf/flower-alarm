@@ -32,7 +32,7 @@ struct Settings {
   };
   int position = 0;
   int properties[4] { 
-    [MIN_T] = 20, [MAX_T] = 30, [MIN_H] = 40, [MAX_H] = 40 
+    [MIN_T] = 20, [MAX_T] = 30, [MIN_H] = 40, [MAX_H] = 60
   };
   int positionDisplay[4][2] {
     [MIN_T] = { 0, 0 },
